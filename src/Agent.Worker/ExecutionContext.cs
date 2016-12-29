@@ -20,6 +20,7 @@ namespace Microsoft.VisualStudio.Services.Agent.Worker
         TaskResult? CommandResult { get; set; }
         CancellationToken CancellationToken { get; }
         List<ServiceEndpoint> Endpoints { get; }
+        PlanFeatures Features { get; }
         Variables Variables { get; }
         List<IAsyncCommandContext> AsyncCommands { get; }
 
@@ -69,13 +70,7 @@ namespace Microsoft.VisualStudio.Services.Agent.Worker
         public Variables Variables { get; private set; }
         public bool WriteDebug { get; private set; }
 
-        public List<IAsyncCommandContext> AsyncCommands
-        {
-            get
-            {
-                return _asyncCommands;
-            }
-        }
+        public List<IAsyncCommandContext> AsyncCommands => _asyncCommands;
 
         public TaskResult? Result
         {
@@ -91,13 +86,7 @@ namespace Microsoft.VisualStudio.Services.Agent.Worker
 
         public TaskResult? CommandResult { get; set; }
 
-        private string ContextType
-        {
-            get
-            {
-                return _record.RecordType;
-            }
-        }
+        private string ContextType => _record.RecordType;
 
         // might remove this.
         // TODO: figure out how do we actually use the result code.
@@ -113,12 +102,15 @@ namespace Microsoft.VisualStudio.Services.Agent.Worker
             }
         }
 
+        public PlanFeatures Features { get; private set; }
+
         public IExecutionContext CreateChild(Guid recordId, string name)
         {
             Trace.Entering();
 
             var child = new ExecutionContext();
             child.Initialize(HostContext);
+            child.Features = Features;
             child.Variables = Variables;
             child.Endpoints = Endpoints;
             child._cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(CancellationToken);
@@ -300,27 +292,29 @@ namespace Microsoft.VisualStudio.Services.Agent.Worker
 
         public void InitializeJob(JobRequestMessage message, CancellationToken token)
         {
-            // Validate/store parameters.
+            // Validation
             Trace.Entering();
             ArgUtil.NotNull(message, nameof(message));
             ArgUtil.NotNull(message.Environment, nameof(message.Environment));
             ArgUtil.NotNull(message.Environment.SystemConnection, nameof(message.Environment.SystemConnection));
             ArgUtil.NotNull(message.Environment.Endpoints, nameof(message.Environment.Endpoints));
             ArgUtil.NotNull(message.Environment.Variables, nameof(message.Environment.Variables));
+            ArgUtil.NotNull(message.Plan, nameof(message.Plan));
 
             _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(token);
 
-            // Initialize the environment.
-            Endpoints = message.Environment.Endpoints;
+            // Features
+            Features = ApiUtil.GetFeatures(message.Plan);
 
-            // Add the system connection to the endpoint list.
+            // Endpoints
+            Endpoints = message.Environment.Endpoints;
             Endpoints.Add(message.Environment.SystemConnection);
 
-            // Initialize the variables. The constructor handles the initial recursive expansion.
+            // Variables (constructor performs initial recursive expansion)
             List<string> warnings;
             Variables = new Variables(HostContext, message.Environment.Variables, message.Environment.MaskHints, out warnings);
 
-            // Proxy setting flows
+            // Proxy variables
             var proxyConfiguration = HostContext.GetService<IProxyConfiguration>();
             if (!string.IsNullOrEmpty(proxyConfiguration.ProxyUrl))
             {
@@ -340,7 +334,7 @@ namespace Microsoft.VisualStudio.Services.Agent.Worker
                 }
             }
 
-            // Initialize the job timeline record.
+            // Job timeline record.
             InitializeTimelineRecord(
                 timelineId: message.Timeline.Id,
                 timelineRecordId: message.JobId,
@@ -349,14 +343,14 @@ namespace Microsoft.VisualStudio.Services.Agent.Worker
                 name: message.JobName,
                 order: 1); // The job timeline record must be at order 1.
 
-            // Initialize the logger before writing warnings.
+            // Logger (must be initialized before writing warnings).
             _logger = HostContext.CreateService<IPagingLogger>();
             _logger.Setup(_mainTimelineId, _record.Id);
 
-            // Log any warnings from recursive variable expansion.
+            // Log warnings from recursive variable expansion.
             warnings?.ForEach(x => this.Warning(x));
 
-            // Initialize the verbosity (based on system.debug).
+            // Verbosity (from system.debug).
             WriteDebug = Variables.System_Debug ?? false;
 
             // Hook up JobServerQueueThrottling event, we will log warning on server tarpit.

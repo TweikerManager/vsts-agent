@@ -33,6 +33,7 @@ namespace Microsoft.VisualStudio.Services.Agent.Worker
             ArgUtil.NotNull(message.Tasks, nameof(message.Tasks));
             Trace.Info("Job ID {0}", message.JobId);
 
+            // System.AccessToken
             if (message.Environment.Variables.ContainsKey(Constants.Variables.System.EnableAccessToken) &&
                 StringUtil.ConvertToBoolean(message.Environment.Variables[Constants.Variables.System.EnableAccessToken]))
             {
@@ -245,8 +246,8 @@ namespace Microsoft.VisualStudio.Services.Agent.Worker
         private async Task<TaskResult> CompleteJobAsync(IJobServer jobServer, IExecutionContext jobContext, AgentJobRequestMessage message, TaskResult? taskResult = null)
         {
             TaskResult result = jobContext.Complete(taskResult);
-
-            if (message.Plan.Version < Constants.OmitFinishAgentRequestRunPlanVersion)
+            
+            if (!jobContext.Features.HasFlag(PlanFeatures.JobCompletedPlanEvent))
             {
                 Trace.Info($"Skip raise job completed event call from worker because Plan version is {message.Plan.Version}");
                 return result;

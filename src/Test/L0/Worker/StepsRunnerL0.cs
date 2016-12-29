@@ -45,12 +45,12 @@ namespace Microsoft.VisualStudio.Services.Agent.Tests.Worker
                 var variableSets = new[]
                 {
                     new[] { CreateStep(TaskResult.Failed, continueOnError: true), CreateStep(TaskResult.Succeeded) },
-                    new[] { CreateStep(TaskResult.Failed, continueOnError: true), CreateStep(TaskResult.Succeeded, alwaysRun: true) },
+                    new[] { CreateStep(TaskResult.Failed, continueOnError: true), CreateStep(TaskResult.Succeeded, condition: "succeededOrFailed()") },
                     new[] { CreateStep(TaskResult.Failed, continueOnError: true), CreateStep(TaskResult.Succeeded, continueOnError: true) },
                     new[] { CreateStep(TaskResult.Failed, continueOnError: true), CreateStep(TaskResult.Succeeded, critical: true) },
                     new[] { CreateStep(TaskResult.Failed, continueOnError: true), CreateStep(TaskResult.Succeeded, isFinally: true) },
                     new[] { CreateStep(TaskResult.Failed, continueOnError: true, critical: true), CreateStep(TaskResult.Succeeded) },
-                    new[] { CreateStep(TaskResult.Failed, continueOnError: true, critical: true), CreateStep(TaskResult.Succeeded, alwaysRun: true) },
+                    new[] { CreateStep(TaskResult.Failed, continueOnError: true, critical: true), CreateStep(TaskResult.Succeeded, condition: "succeededOrFailed()") },
                     new[] { CreateStep(TaskResult.Failed, continueOnError: true, critical: true), CreateStep(TaskResult.Succeeded, continueOnError: true) },
                     new[] { CreateStep(TaskResult.Failed, continueOnError: true, critical: true), CreateStep(TaskResult.Succeeded, critical: true) },
                     new[] { CreateStep(TaskResult.Failed, continueOnError: true, critical: true), CreateStep(TaskResult.Succeeded, isFinally: true) },
@@ -85,12 +85,12 @@ namespace Microsoft.VisualStudio.Services.Agent.Tests.Worker
                 {
                     new
                     {
-                        Steps = new[] { CreateStep(TaskResult.Succeeded), CreateStep(TaskResult.Succeeded, alwaysRun: true) },
+                        Steps = new[] { CreateStep(TaskResult.Succeeded), CreateStep(TaskResult.Succeeded, condition: "succeededOrFailed()") },
                         Expected = TaskResult.Succeeded,
                     },
                     new
                     {
-                        Steps = new[] { CreateStep(TaskResult.Failed), CreateStep(TaskResult.Succeeded, alwaysRun: true) },
+                        Steps = new[] { CreateStep(TaskResult.Failed), CreateStep(TaskResult.Succeeded, condition: "succeededOrFailed()") },
                         Expected = TaskResult.Failed,
                     },
                 };
@@ -183,7 +183,7 @@ namespace Microsoft.VisualStudio.Services.Agent.Tests.Worker
                     },
                     new
                     {
-                        Steps = new[] { CreateStep(TaskResult.Failed), CreateStep(TaskResult.Succeeded, alwaysRun: true) },
+                        Steps = new[] { CreateStep(TaskResult.Failed), CreateStep(TaskResult.Succeeded, condition: "succeededOrFailed()") },
                         Expected = TaskResult.Failed
                     },
                     new
@@ -271,10 +271,10 @@ namespace Microsoft.VisualStudio.Services.Agent.Tests.Worker
                 var variableSets = new[]
                 {
                     new[] { CreateStep(TaskResult.Failed, critical: true), CreateStep(TaskResult.Succeeded) },
-                    new[] { CreateStep(TaskResult.Failed, critical: true), CreateStep(TaskResult.Succeeded, alwaysRun: true) },
+                    new[] { CreateStep(TaskResult.Failed, critical: true), CreateStep(TaskResult.Succeeded, condition: "succeededOrFailed()") },
                     new[] { CreateStep(TaskResult.Failed, critical: true), CreateStep(TaskResult.Succeeded, continueOnError: true) },
                     new[] { CreateStep(TaskResult.Failed, critical: true), CreateStep(TaskResult.Succeeded, critical: true) },
-                    new[] { CreateStep(TaskResult.Failed, critical: true), CreateStep(TaskResult.Succeeded, alwaysRun: true, continueOnError: true, critical: true) },
+                    new[] { CreateStep(TaskResult.Failed, critical: true), CreateStep(TaskResult.Succeeded, condition: "succeededOrFailed()", continueOnError: true, critical: true) },
                 };
                 foreach (var variableSet in variableSets)
                 {
@@ -312,7 +312,7 @@ namespace Microsoft.VisualStudio.Services.Agent.Tests.Worker
                     new[] { CreateStep(TaskResult.Failed), CreateStep(TaskResult.Succeeded, continueOnError: true) },
                     new[] { CreateStep(TaskResult.Failed), CreateStep(TaskResult.Succeeded, critical: true) },
                     new[] { CreateStep(TaskResult.Failed, critical: true), CreateStep(TaskResult.Succeeded) },
-                    new[] { CreateStep(TaskResult.Failed, critical: true), CreateStep(TaskResult.Succeeded, alwaysRun: true) },
+                    new[] { CreateStep(TaskResult.Failed, critical: true), CreateStep(TaskResult.Succeeded, condition: "succeededOrFailed()") },
                     new[] { CreateStep(TaskResult.Failed, critical: true), CreateStep(TaskResult.Succeeded, continueOnError: true) },
                     new[] { CreateStep(TaskResult.Failed, critical: true), CreateStep(TaskResult.Succeeded, critical: true) },
                 };
@@ -338,11 +338,11 @@ namespace Microsoft.VisualStudio.Services.Agent.Tests.Worker
             }
         }
 
-        private Mock<IStep> CreateStep(TaskResult result, Boolean alwaysRun = false, Boolean continueOnError = false, Boolean critical = false, Boolean isFinally = false)
+        private Mock<IStep> CreateStep(TaskResult result, string condition = "", Boolean continueOnError = false, Boolean critical = false, Boolean isFinally = false)
         {
             // Setup the step.
             var step = new Mock<IStep>();
-            step.Setup(x => x.AlwaysRun).Returns(alwaysRun);
+            step.Setup(x => x.Condition).Returns(condition);
             step.Setup(x => x.ContinueOnError).Returns(continueOnError);
             step.Setup(x => x.Critical).Returns(critical);
             step.Setup(x => x.Enabled).Returns(true);
@@ -372,9 +372,9 @@ namespace Microsoft.VisualStudio.Services.Agent.Tests.Worker
                 " ; ",
                 steps.Select(x => String.Format(
                     CultureInfo.InvariantCulture,
-                    "Returns={0},AlwaysRun={1},ContinueOnError={2},Critical={3},Enabled={4},Finally={5}",
+                    "Returns={0},Condition=[{1}],ContinueOnError={2},Critical={3},Enabled={4},Finally={5}",
                     x.Object.ExecutionContext.Result,
-                    x.Object.AlwaysRun,
+                    x.Object.Condition,
                     x.Object.ContinueOnError,
                     x.Object.Critical,
                     x.Object.Enabled,

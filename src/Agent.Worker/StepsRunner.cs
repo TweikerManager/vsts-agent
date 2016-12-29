@@ -9,8 +9,7 @@ namespace Microsoft.VisualStudio.Services.Agent.Worker
 {
     public interface IStep
     {
-        // Run even if a previous non-critical step has failed.
-        bool AlwaysRun { get; }
+        string Condition { get; }
         // Treat Failed as SucceededWithIssues.
         bool ContinueOnError { get; }
         // Treat failure as fatal. Subsequent AlwaysRun steps will not run.
@@ -49,25 +48,32 @@ namespace Microsoft.VisualStudio.Services.Agent.Worker
             jobContext.Variables.Agent_JobStatus = TaskResult.Succeeded;
             foreach (IStep step in steps)
             {
-                Trace.Info($"Processing step: DisplayName='{step.DisplayName}', AlwaysRun={step.AlwaysRun}, ContinueOnError={step.ContinueOnError}, Critical={step.Critical}, Enabled={step.Enabled}, Finally={step.Finally}");
+                Trace.Info($"Processing step: DisplayName='{step.DisplayName}', ContinueOnError={step.ContinueOnError}, Critical={step.Critical}, Enabled={step.Enabled}, Finally={step.Finally}");
                 ArgUtil.Equal(true, step.Enabled, nameof(step.Enabled));
                 ArgUtil.NotNull(step.ExecutionContext, nameof(step.ExecutionContext));
                 ArgUtil.NotNull(step.ExecutionContext.Variables, nameof(step.ExecutionContext.Variables));
 
                 jobContext.Progress(stepCount++ * 100 / steps.Count);
 
-                // TODO: Run finally even if canceled?
-
-                // Skip if a previous step failed and the current step is not AlwaysRun.
-                if ((stepFailed && !step.AlwaysRun && !step.Finally)
-                    // Or if a previous Critical step failed and the current step is not Finally.
-                    || (criticalStepFailed && !step.Finally))
+                // Test critical failure.
+                if (criticalStepFailed && !step.Finally)
                 {
-                    Trace.Info("Skipping step.");
-                    
-                    // Skip the step context.
+                    Trace.Info("Skipping step due to previous critical step failure.");
                     step.ExecutionContext.Skip();
+                    continue;
+                }
 
+                // Variable expansion.
+                List<string> expansionWarnings;
+                step.ExecutionContext.Variables.RecalculateExpanded(out expansionWarnings);
+                expansionWarnings?.ForEach(x => step.ExecutionContext.Warning(x));
+
+                // Condition.
+                step.ExecutionContext.Debug($"Evaluating condition for step: '{step.DisplayName}'");
+                var expressionManager = HostContext.GetService<IExpressionManager>();
+                if (!expressionManager.Evaluate(step.ExecutionContext, step.Condition))
+                {
+                    Trace.Info("Skipping step due to condition evaluation.");
                     continue;
                 }
 
@@ -80,9 +86,6 @@ namespace Microsoft.VisualStudio.Services.Agent.Worker
                 }
 
                 step.ExecutionContext.Start(timeout: stepTimeout);
-                List<string> expansionWarnings;
-                step.ExecutionContext.Variables.RecalculateExpanded(out expansionWarnings);
-                expansionWarnings?.ForEach(x => step.ExecutionContext.Warning(x));
                 List<OperationCanceledException> allCancelExceptions = new List<OperationCanceledException>();
                 try
                 {
