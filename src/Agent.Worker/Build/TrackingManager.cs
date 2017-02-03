@@ -235,10 +235,11 @@ namespace Microsoft.VisualStudio.Services.Agent.Worker.Build
                     var gcConfig = LoadIfExists(executionContext, gcFile) as TrackingConfig;
                     ArgUtil.NotNull(gcConfig, nameof(TrackingConfig));
 
-                    executionContext.Output($"Deleting '{gcConfig.BuildDirectory}'");
-                    IOUtil.DeleteDirectory(gcConfig.BuildDirectory, CancellationToken.None);
+                    string fullPath = Path.Combine(HostContext.GetDirectory(WellKnownDirectory.Work), gcConfig.BuildDirectory);
+                    executionContext.Output($"Deleting '{fullPath}'");
+                    IOUtil.DeleteDirectory(fullPath, CancellationToken.None);
 
-                    executionContext.Output($"Delete gc tracking file after delete '{gcConfig.BuildDirectory}'");
+                    executionContext.Output($"Delete gc tracking file after delete '{fullPath}'");
                     IOUtil.DeleteFile(gcFile);
                 }
                 catch (Exception ex)
