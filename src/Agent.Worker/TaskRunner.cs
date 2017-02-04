@@ -44,8 +44,6 @@ namespace Microsoft.VisualStudio.Services.Agent.Worker
 
         public bool Finally => false;
 
-        public TaskOrchestrationPlanReference Plan { get; set; }
-
         public TaskInstance TaskInstance { get; set; }
 
         public async Task RunAsync()
